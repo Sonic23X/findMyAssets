@@ -156,6 +156,13 @@ $routes->post('/empresas/newArea', 'Company::NewArea');
 $routes->post('/empresas/editArea', 'Company::EditArea');
 $routes->post('/empresas/deleteArea', 'Company::DeleteArea');
 $routes->post('/empresas/changeCompany', 'Company::changeCompany');
+$routes->post('/empresas/newCompany', 'Company::NewCompany');
+$routes->post('/empresas/newTipo', 'Company::NewTipo');
+$routes->post('/empresas/editTipo', 'Company::EditTipo');
+$routes->post('/empresas/deleteTipo', 'Company::DeleteTipo');
+$routes->post('/empresas/newCC', 'Company::newCC');
+$routes->post('/empresas/editCC', 'Company::EditCC');
+$routes->post('/empresas/deleteCC', 'Company::DeleteCC');
 
 /**
  * --------------------------------------------------------------------

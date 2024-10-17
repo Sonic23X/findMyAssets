@@ -233,20 +233,21 @@ class Company extends BaseController
 
 	public function ChangeCompany()
 	{
-		try {
-			$data = [
+		if ( $this->request->isAJAX( ) )
+		{
+			$data =
+			[
 				'id_empresa' => $this->request->getVar( 'id' ),
 			];
 
-			$this->userModel->where('id_usuario', $this->session->id)->set($data)->update();
+			$this->userModel->where( 'id_usuario', $this->session->id )->set( $data )->update( );
 
-			$this->session->set('empresa', $this->request->getVar('id'));
+			$this->session->set( 'empresa', $this->request->getVar( 'id' ) );
 
-			return json_encode(array('status' => 200, 'msg' => '¡Configuracion actualizada!'));
-		} catch (\Throwable $th) {
-			return json_encode(array('status' => 400, 'msg' => '¡Error al actualizar la configuracion!'));
+			echo json_encode( array( 'status' => 200, 'msg' => '¡Configuracion actualizada!' ) );
 		}
-		
+		else
+			return view( 'errors/cli/error_404' );
 	}
 	
 	function ChangeImage()

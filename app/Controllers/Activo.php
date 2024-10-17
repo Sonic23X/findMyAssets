@@ -483,7 +483,7 @@ class Activo extends BaseController
       		try
       		{
 				$activo = $this->request->getVar( 'codigo' );
-				$tipo;
+				$tipo = null;
 
 				switch ( $this->request->getVar( 'type' ) )
 				{
@@ -651,7 +651,7 @@ class Activo extends BaseController
 		$sheet->setCellValue( 'N1', 'Foto Frontal' );
 		$sheet->setCellValue( 'O1', 'Foto Lat. Derecha' );
 		$sheet->setCellValue( 'P1', 'Foto Lat. Izquierda' );
-
+		
 		$styleHeadArray = 
 		[
 			'font' => [
@@ -757,7 +757,7 @@ class Activo extends BaseController
 		
 		$sheet->getStyle('A2:P'.($fila - 1))->applyFromArray($styleBodyArray);
 		
-		$writer = new Xls($spreadsheet);
+		$writer = new Xlsx($spreadsheet);
 
 		$dia = date('Y/m/d');
 		$hora = date('h:i');
@@ -779,7 +779,7 @@ class Activo extends BaseController
 									->where( 'status !=', 'conciliado' )
 									->where( 'status !=', 'eliminado' )
 									->where( 'TS_Delete', null )
-									->select('Id, ID_Activo, Nom_Activo, User_Inventario, ID_Area, ID_Sucursal, ID_CC, ID_Tipo, TS_Create, TS_Update, Ima_ActivoLeft, Ima_ActivoRight, Ima_ActivoFront')
+									->select('Id, ID_Activo, Nom_Activo, User_Inventario, ID_Area, ID_Sucursal, ID_CC, ID_Tipo, TS_Create, TS_Update, Ima_ActivoLeft, Ima_ActivoRight, Ima_ActivoFront', )
 									->findAll();
 
 		$spreadsheet = new Spreadsheet( );
@@ -801,6 +801,7 @@ class Activo extends BaseController
 		$sheet->getColumnDimension('M')->setWidth(50);
 		$sheet->getColumnDimension('N')->setWidth(50);
 		$sheet->getColumnDimension('O')->setWidth(50);
+
 
 		//iniciamos tabla 
 		$sheet->setCellValue( 'A1', 'Número de activo' );
@@ -909,7 +910,7 @@ class Activo extends BaseController
 		
 		$sheet->getStyle('A2:O'.($fila - 1))->applyFromArray($styleBodyArray);
 		
-		$writer = new Xls($spreadsheet);
+		$writer = new Xlsx($spreadsheet);
 
 		$dia = date('Y/m/d');
 		$hora = date('h:i');
@@ -920,6 +921,7 @@ class Activo extends BaseController
 		header('Content-Type: application/vnd.ms-excel');
 		header('Content-Disposition: attachment;filename="'. $nombre .'"');
 		header('Cache-Control: max-age=0');
+		
 		$writer->save('php://output');
 	}
 
@@ -1039,243 +1041,253 @@ class Activo extends BaseController
 	{
 		if ( $this->request->isAJAX( ) )
 		{
-			$file = $this->request->getFile('excel');
-			$nameFile = explode('.', $file->getName());
-			$cabezales = true;
+				$file = $this->request->getFile('excel');
+				$nameFile = explode('.', $file->getName());
+				$cabezales = true;
 
-			$reader = null;
+				$reader = null;
 
-			if ($nameFile[1] == 'xls') 
-				$reader = new ReadXls();				
-			else
-				$reader = new Xlsx();				
-
-			$reader->setReadDataOnly( TRUE );
-
-			$spreadsheet = $reader->load($file)->getActiveSheet( );
-
-			$rows = [ ];
-			foreach ( $spreadsheet->getRowIterator( ) as $row )
-			{
-				if ($cabezales) 
-					$cabezales = false;
+				if ($nameFile[1] == 'xls') 
+					$reader = new ReadXls();				
 				else
+					$reader = new Xlsx();				
+
+				$reader->setReadDataOnly( TRUE );
+
+				$spreadsheet = $reader->load($file)->getActiveSheet( );
+
+				$rows = [ ];
+				foreach ( $spreadsheet->getRowIterator( ) as $row )
 				{
-					$cellIterator = $row->getCellIterator( );
-					$cells = [ ];
-					
-					foreach ( $cellIterator as $cell ) 
+					if ($cabezales) 
+						$cabezales = false;
+					else
 					{
-						$cells[ ] = $cell->getValue( ); 
-					}
-					
-					$rows[ ] = $cells;
-				}
-			}
-
-			$errores = [];	
-			$subidos = 0;
-			$linea = 1;
-			$activos_subidos = [];
-			foreach ( $rows as $activo ) 
-			{
-				//Validación de activos
-				$linea++;
-				$tipo = null;
-				$cc = null;
-				$user = null;
-				$sucursal = null;
-				$area = null;
-				$error = false;
-				$toInv1 = false;
-				$toInv2 = false;
-
-				if ($activo[0] == null) 
-				{
-					array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene un id de activo' ]);
-				}
-				else
-				{
-					if($this->draftModel->where('ID_Activo', $activo[0])->where('ID_Company', $this->session->empresa)->first() == null)
-					{
-
-						if ($activo[1] == null) 
+						$cellIterator = $row->getCellIterator( );
+						$cells = [ ];
+						
+						foreach ( $cellIterator as $cell ) 
 						{
-							array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene un tipo de activo' ]);
-							$error = true;
-						}
-						else
-						{
-							$tipo = $this->tipoModel->like('Desc', $activo[1])->where('ID_Empresa', $this->session->empresa )->first();
-							if($tipo == null)
-							{
-								array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El tipo de activo  no está registrado en el sistema.' ]);
-								$error = true;
-							}
-						}
-
-						if ($activo[2] == null) 
-						{
-							array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene un nombre de activo' ]);
-							$error = true;
-						}
-
-						if ($activo[3] == null) 
-						{
-							array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene un centro de costos' ]);
-							$error = true;
-						}
-						else
-						{
-							$cc = $this->ccModel->like('Subcuenta', $activo[3])->where('id_empresa', $this->session->empresa )->first();
-							if($cc == null)
-							{
-								array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El centro de costos no está registrado en el sistema.' ]);
-								$error = true;
-							}
-						}
-
-						if ($activo[4] == null) 
-						{
-							array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene el email del usuario' ]);
-							$error = true;
-						}
-						else
-						{
-							$user = $this->userModel->where('email', $activo[4])->first();
-							if($user == null)
-							{
-								array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El usuario no está registrado en el sistema, se registró el activo sin usuario.' ]);
-							}
-						}
-
-						if ($activo[5] == null) 
-						{
-							array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene la sucursal' ]);
-							$error = true;
-						}
-						else
-						{
-							$sucursal = $this->sucursalModel->like('Desc', $activo[5])->first();
-							if($sucursal == null)
-							{
-								array_push($errores, [ 'activo' => $activo[0], 'problema' => 'La sucursal no está registrada en el sistema.' ]);
-								$error = true;
-							}
-						}
-
-						if ($activo[6] == null) 
-						{
-							array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene el area' ]);
-							$error = true;
-						}
-						else
-						{
-							$area = $this->areaModel->like('descripcion', $activo[6])->first();
-							if($area == null)
-							{
-								array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El área no está registrada en el sistema.' ]);
-								$error = true;
-							}
-						}
-
-						if ($activo[8] != null) 
-						{
-							$toInv1 = true;
-						}
-
-						if ($activo[9] != null) 
-						{
-							$toInv2 = true;
+							$cells[ ] = $cell->getValue( ); 
 						}
 						
+						$rows[ ] = $cells;
+					}
+				}
 
-						if (!$error) 
-						{
-							if ($toInv1 && $toInv2) 
-							{
-								$draft =
-								[
-									'ID_Activo' => $activo[0],
-									'Nom_Activo' => $activo[2],
-									'ID_Company' => $this->session->empresa,
-									'ID_Tipo' => ($tipo == null) ? 0 : $tipo['id'],
-									'Des_Activo' => ($activo[7] != null) ? $activo[7] : '-',
-									'NSerie_Activo' => '-',
-									'GPS' => $this->request->getVar('gps'),
-									'ID_CC' => ($cc == null) ? 0 : $cc['id'],
-									'User_Inventario' => ($user == null) ? 88 : $user['id_usuario'],
-									'ID_Sucursal' => ($sucursal == null) ? 0 : $sucursal['id'],
-									'ID_Area' => ($area == null) ? 0 : $area['id'],
-									'TS_Create' => date( 'Y/n/j H:i:s' ),
-									'status' => 'activado'
-								];
-
-								$load_activo = $this->draftModel->insert($draft);
-
-								$nuevo_activo =
-								[
-									'ID_Activo' => $activo[0],
-									'Nom_Activo' => $activo[2],
-									'ID_Company' => $this->session->empresa,
-									'ID_Tipo' => ($tipo == null) ? 0 : $tipo['id'],
-									'Des_Activo' => '-',
-									'NSerie_Activo' => '-',
-									'ID_CC' => ($cc == null) ? 0 : $cc['id'],
-									'User_Inventario' => ($user == null) ? 88 : $user['id_usuario'],
-									'ID_Sucursal' => ($sucursal == null) ? 0 : $sucursal['id'],
-									'ID_Area' => ($area == null) ? 0 : $area['id'],
-									'Pre_Compra' => $activo[8],
-									'Fec_Compra' => $activo[9],
-									'TS_Create' => date( 'Y/n/j H:i:s' ),
-								];
-
-								$load_activo = $this->activoModel->insert($nuevo_activo);
-							}
-							else
-							{
-								$draft =
-								[
-									'ID_Activo' => $activo[0],
-									'Nom_Activo' => $activo[2],
-									'ID_Company' => $this->session->empresa,
-									'ID_Tipo' => ($tipo == null) ? 0 : $tipo['id'],
-									'Des_Activo' => ($activo[7] != null) ? $activo[7] : '-',
-									'NSerie_Activo' => '-',
-									'GPS' => $this->request->getVar('gps'),
-									'ID_CC' => ($cc == null) ? 0 : $cc['id'],
-									'User_Inventario' => ($user == null) ? 88 : $user['id_usuario'],
-									'ID_Sucursal' => ($sucursal == null) ? 0 : $sucursal['id'],
-									'ID_Area' => ($area == null) ? 0 : $area['id'],
-									'TS_Create' => date( 'Y/n/j H:i:s' ),
-									'status' => 'nuevo'
-								];
-
-								$load_activo = $this->draftModel->insert($draft);
-							}
-
-							$subidos++;
-
-							$json =
-							[
-								'id' => $load_activo,
-								'tipo' => $tipo['Desc'],
-								'nombre' => $activo[2],
-								'usuario' => $user['nombre'] . ' ' . $user['apellidos'],
-								'fecha' => date( 'Y/n/j'),
-								'id_activo' => $activo[0],
-							];
-
-							array_push( $activos_subidos, $json );
-						}
+				$errores = [];	
+				$subidos = 0;
+				$linea = 1;
+				$activos_subidos = [];
+				foreach ( $rows as $activo ) 
+				{
+					//Validación de activos
+					$linea++;
+					$tipo = null;
+					$cc = null;
+					$user = null;
+					$sucursal = null;
+					$area = null;
+					$error = false;
+					$toInv1 = false;
+					$toInv2 = false;
+					log_message('info', json_encode($activo));
+					if ($activo[0] == null) 
+					{
+						array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene un id de activo' ]);
 					}
 					else
 					{
-						array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El activo ya está registrado' ]);
+						if($this->draftModel->where('ID_Activo', $activo[0])->where('ID_Company', $this->session->empresa)->first() == null)
+						{
+
+							if ($activo[1] == null) 
+							{
+								array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene un tipo de activo' ]);
+								$error = true;
+							}
+							else
+							{
+								$tipo = $this->tipoModel->like('Desc', $activo[1])->where('ID_Empresa', $this->session->empresa )->first();
+								if($tipo == null)
+								{
+									array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El tipo de activo  no está registrado en el sistema.' ]);
+									$error = true;
+								}
+							}
+
+								if ($activo[2] == null) 
+								{
+									array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene un nombre de activo' ]);
+									$error = true;
+								}
+
+								if ($activo[3] == null) 
+								{
+									array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene un centro de costos' ]);
+									$error = true;
+								}
+								else
+								{
+									$cc = $this->ccModel->like('Subcuenta', $activo[3])->where('id_empresa', $this->session->empresa )->first();
+									if($cc == null)
+									{
+										array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El centro de costos no está registrado en el sistema.' ]);
+										$error = true;
+									}
+								}
+
+								if ($activo[4] == null) 
+								{
+									array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene el email del usuario' ]);
+									$error = true;
+								}
+								else
+								{
+									$user = $this->userModel->where('email', $activo[4])->first();
+									if($user == null)
+									{
+										array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El usuario no está registrado en el sistema, se registró el activo sin usuario.' ]);
+									}
+								}
+
+								if ($activo[5] == null) 
+								{
+									array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene la sucursal' ]);
+									$error = true;
+								}
+								else
+								{
+									$sucursal = $this->sucursalModel->like('Desc', $activo[5])->first();
+									if($sucursal == null)
+									{
+										array_push($errores, [ 'activo' => $activo[0], 'problema' => 'La sucursal no está registrada en el sistema.' ]);
+										$error = true;
+									}
+								}
+
+								if ($activo[6] == null) 
+								{
+									array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene el area' ]);
+									$error = true;
+								}
+								else
+								{
+									$area = $this->areaModel->like('descripcion', $activo[6])->first();
+									if($area == null)
+									{
+										array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El área no está registrada en el sistema.' ]);
+										$error = true;
+									}
+								}
+
+								if ($activo[8] != null) 
+								{
+									$toInv1 = true;
+								}
+
+								if ($activo[9] != null) 
+								{
+									$toInv2 = true;
+								}
+								
+								if ($activo[10] == null) 
+								{
+									array_push($errores, [ 'activo' => 'Linea ' . $linea, 'problema' => 'La linea no contiene una condicion del Activo' ]);
+									$error = true;
+								}
+								
+
+								if (!$error) 
+								{
+									if ($toInv1 && $toInv2) 
+									{
+										$draft =
+										[
+											'ID_Activo' => $activo[0],
+											'Nom_Activo' => $activo[2],
+											'ID_Company' => $this->session->empresa,
+											'ID_Tipo' => ($tipo == null) ? 0 : $tipo['id'],
+											'Des_Activo' => ($activo[7] != null) ? $activo[7] : '-',
+											'NSerie_Activo' => '-',
+											'GPS' => $this->request->getVar('gps'),
+											'ID_CC' => ($cc == null) ? 0 : $cc['id'],
+											'User_Inventario' => ($user == null) ? 88 : $user['id_usuario'],
+											'ID_Sucursal' => ($sucursal == null) ? 0 : $sucursal['id'],
+											'ID_Area' => ($area == null) ? 0 : $area['id'],
+											'TS_Create' => date( 'Y/n/j H:i:s' ),
+											'status' => 'activado',
+											'conditions' => $activo[10],
+										];
+
+										$load_activo = $this->draftModel->insert($draft);
+
+										$nuevo_activo =
+										[
+											'ID_Activo' => $activo[0],
+											'Nom_Activo' => $activo[2],
+											'ID_Company' => $this->session->empresa,
+											'ID_Tipo' => ($tipo == null) ? 0 : $tipo['id'],
+											'Des_Activo' => '-',
+											'NSerie_Activo' => '-',
+											'ID_CC' => ($cc == null) ? 0 : $cc['id'],
+											'User_Inventario' => ($user == null) ? 88 : $user['id_usuario'],
+											'ID_Sucursal' => ($sucursal == null) ? 0 : $sucursal['id'],
+											'ID_Area' => ($area == null) ? 0 : $area['id'],
+											'Pre_Compra' => $activo[8],
+											'Fec_Compra' => $activo[9],
+											'TS_Create' => date( 'Y/n/j H:i:s' ),
+											'conditions' => $activo[10],
+										];
+
+										$load_activo = $this->activoModel->insert($nuevo_activo);
+									}
+									else
+									{
+										$draft =
+										[
+											'ID_Activo' => $activo[0],
+											'Nom_Activo' => $activo[2],
+											'ID_Company' => $this->session->empresa,
+											'ID_Tipo' => ($tipo == null) ? 0 : $tipo['id'],
+											'Des_Activo' => ($activo[7] != null) ? $activo[7] : '-',
+											'NSerie_Activo' => '-',
+											'GPS' => $this->request->getVar('gps'),
+											'ID_CC' => ($cc == null) ? 0 : $cc['id'],
+											'User_Inventario' => ($user == null) ? 88 : $user['id_usuario'],
+											'ID_Sucursal' => ($sucursal == null) ? 0 : $sucursal['id'],
+											'ID_Area' => ($area == null) ? 0 : $area['id'],
+											'TS_Create' => date( 'Y/n/j H:i:s' ),
+											'status' => 'nuevo',
+											'conditions' => $activo[10],
+										];
+
+										$load_activo = $this->draftModel->insert($draft);
+									}
+
+								$subidos++;
+
+								$json =
+								[
+									'id' => $load_activo,
+									'tipo' => $tipo['Desc'],
+									'nombre' => $activo[2],
+									'usuario' => $user['nombre'] . ' ' . $user['apellidos'],
+									'fecha' => date( 'Y/n/j'),
+									'id_activo' => $activo[0],
+								];
+
+								array_push( $activos_subidos, $json );
+							}
+						}
+						else
+						{
+							array_push($errores, [ 'activo' => $activo[0], 'problema' => 'El activo ya está registrado' ]);
+						}
 					}
 				}
-			}
-			echo json_encode( array( 'status' => 200, 'errores' => $errores, 'subidos' => $subidos, 'activos' => $activos_subidos ) );
+				echo json_encode( array( 'status' => 200, 'errores' => $errores, 'subidos' => $subidos, 'activos' => $activos_subidos ) );
+			
 		}
 		else
 			return view( 'errors/cli/error_404' );
@@ -1297,6 +1309,9 @@ class Activo extends BaseController
 		$cargaSheet->getColumnDimension('H')->setWidth(30);
 		$cargaSheet->getColumnDimension('I')->setWidth(30);
 		$cargaSheet->getColumnDimension('J')->setWidth(30);
+		$cargaSheet->getColumnDimension('K')->setWidth(30);
+
+
 
 		//iniciamos tabla 
 		$cargaSheet->setCellValue( 'A1', 'Número de activo' );
@@ -1309,6 +1324,10 @@ class Activo extends BaseController
 		$cargaSheet->setCellValue( 'H1', 'Descripción' );
 		$cargaSheet->setCellValue( 'I1', 'Precio de compra' );
 		$cargaSheet->setCellValue( 'J1', 'Fecha de compra' );
+		$cargaSheet->setCellValue( 'K1', 'Estado' );
+
+
+
 
 		$tiposSheet = new Worksheet($spreadsheet, 'Tipos');
 		$spreadsheet->addSheet($tiposSheet, 1);
@@ -1416,7 +1435,7 @@ class Activo extends BaseController
 			],
 		];
 			
-		$cargaSheet->getStyle('A1:H1')->applyFromArray($styleHeadArray);
+		$cargaSheet->getStyle('A1:K1')->applyFromArray($styleHeadArray);
 		$tiposSheet->getStyle('A1:A1')->applyFromArray($styleHeadArray);
 		$ccSheet->getStyle('A1:B1')->applyFromArray($styleHeadArray);
 		$userSheet->getStyle('A1:C1')->applyFromArray($styleHeadArray);
